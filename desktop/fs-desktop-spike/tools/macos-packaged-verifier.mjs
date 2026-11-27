@@ -164,7 +164,7 @@ function pass(name, detail = {}) {
   console.log(`PASS ${name}`);
 }
 
-function readFailureDiagnostics() {
+function readNativeDiagnostics() {
   const tracePath = resolve(probeRoot, "fs-desktop-runtime-trace.log");
   const observedStages = new Map();
   const runtimeStage = /^(runtime run entered|setup entered|desktop runtime initialized|desktop runtime installed|main window created)$/;
@@ -213,6 +213,13 @@ function readFailureDiagnostics() {
   return { lastProbe, observedStages: Object.fromEntries(observedStages), stderrCategories, gtkEvents };
 }
 
+function verifyPrivateGtkView(role) {
+  const expected = `FS_GTK role=${role} attached incognito=true ephemeral=true loading=`;
+  if (!readNativeDiagnostics().gtkEvents.some(event => event.startsWith(expected))) {
+    throw new Error(`Linux did not prove ephemeral GTK isolation for the ${role} window.`);
+  }
+}
+
 let server = null;
 let app = null;
 try {
@@ -227,6 +234,7 @@ try {
   removeProbe();
   app = startApp();
   const online = validate(await waitForProbe((value) => expectedBoot(value, "online"), app), "online");
+  if (linux) verifyPrivateGtkView("candidate");
   pass("signed native startup", {
     activeBuildId: normalBuildId,
     origin: online.nativeEvidence.contentOrigin,
@@ -324,14 +332,15 @@ try {
     server = null;
     await waitForPort(false);
     const recoveryStage = "command desktop_recovery_status";
-    const previous = readFailureDiagnostics().observedStages[recoveryStage] || 0;
+    const previous = readNativeDiagnostics().observedStages[recoveryStage] || 0;
     app = startApp("recovery-profile");
     await waitForProbe(
       (value) => (value.observedStages[recoveryStage] || 0) > previous,
       app,
       45_000,
-      readFailureDiagnostics,
+      readNativeDiagnostics,
     );
+    verifyPrivateGtkView("recovery");
     pass("fresh Linux profile exposes read-only recovery without the release source");
   }
   evidence.status = "passed";
@@ -339,7 +348,7 @@ try {
   evidence.status = "failed";
   evidence.failure = String(error?.stack || error).slice(0, 2_000);
   console.error(evidence.failure);
-  evidence.diagnostics = readFailureDiagnostics();
+  evidence.diagnostics = readNativeDiagnostics();
   console.error("Synthetic native startup diagnostics", JSON.stringify(evidence.diagnostics));
   process.exitCode = 1;
 } finally {

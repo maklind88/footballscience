@@ -25,6 +25,9 @@ tauri = { version = "=2.11.5", features = [] }
 uuid = { version = "=1.26.0", features = ["v4"] }
 zeroize = { version = "=1.8.2", features = ["derive"] }
 
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+tauri-runtime-wry = "=2.11.4"
+
 [patch.crates-io]
 # Keep private GTK WebViews ephemeral and register their schemes on the new context.
 tauri-runtime-wry = { path = "vendor/tauri-runtime-wry-2.11.4" }

@@ -23,6 +23,8 @@ Det fristående WebKitGTK-provet laddar HTML och en JavaScript-modul från ett l
 
 Att begära första navigeringen efter Tauri-registreringen öppnade fortfarande inget innehåll i den paketerade Ubuntu-appen. Den försöksändringen är borttagen. Diagnostiken jämför nu även sen protokollregistrering i råprovet och fångar WebKits egna laddningssignaler i Linux-testbygget. [Utfall för paketerad Ubuntu-start](https://github.com/maklind88/footballscience/actions/runs/45931623739/job/140285414082)
 
+Tauri lämnar ut ett fönsterhandtag när den inbyggda byggbegäran har skickats. Wry avvisade protokollet som en dubblett mot huvudfönstrets kontext innan den flyktiga GTK-kontexten skapades. Linux-kandidaten undviker att låna den delade kontexten för privata fönster. Det paketerade provet kräver även bevis för att kandidat- och återställningsfönstren faktiskt är flyktiga.
+
 ## Native sparning vid processomstart
 
 Två separata Rust-testprocesser använder samma tillfälliga SQLite-databas och ett filvalv med syntetiska uppgifter. Den första processen sparar en ändring och sänder den till Desktop-prototypens lokala HTTP-server. Servern tillämpar ändringen och stänger anslutningen före kvittot. Den första processen avslutas medan SQLite-anslutningen fortfarande är öppen. Den andra processen återställer läsbehörigheten, läser tillbaka samma revision och behåller den osynkade posten tills nya synkuppgifter finns. Återsändningen ger kvittot `already-applied`. Servern verifierar två anrop, en tillämpning och en oförändrad revision efter det andra anropet.

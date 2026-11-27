@@ -111,6 +111,18 @@ jobs:
         working-directory: desktop/fs-desktop-spike/src-tauri
         run: cargo +1.98.0 test --lib --locked
 
+      - name: Prove Wry rejects a borrowed context and opens private GTK views
+        if: matrix.os == 'linux'
+        working-directory: desktop/fs-desktop-spike/src-tauri
+        shell: bash
+        run: |
+          cargo +1.98.0 build --locked --example linux_wry_tao_context_probe
+          qa_dir="$(mktemp -d)"
+          trap 'rm -rf "$qa_dir"' EXIT
+          export XDG_DATA_HOME="$qa_dir/data" XDG_CONFIG_HOME="$qa_dir/config" XDG_CACHE_HOME="$qa_dir/cache"
+          mkdir -m 700 "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+          xvfb-run -a dbus-run-session -- timeout 45s target/debug/examples/linux_wry_tao_context_probe
+
       - name: Build unsigned Windows test executables
         if: matrix.os == 'windows'
         env:

@@ -4813,7 +4813,22 @@ You may have it installed on another user account, but it is not available for t
     }
   };
 
-  let mut webview_builder = WebViewBuilder::new_with_web_context(&mut web_context.inner)
+  let separate_gtk_context = webview_attributes.incognito
+    && cfg!(any(
+      target_os = "linux",
+      target_os = "dragonfly",
+      target_os = "freebsd",
+      target_os = "netbsd",
+      target_os = "openbsd"
+    ));
+  // Wry validates protocol registrations against a borrowed context before it creates
+  // GTK's ephemeral context. Build private views without borrowing the shared one.
+  let webview_builder = if separate_gtk_context {
+    WebViewBuilder::new()
+  } else {
+    WebViewBuilder::new_with_web_context(&mut web_context.inner)
+  };
+  let mut webview_builder = webview_builder
     .with_id(&label)
     .with_focused(webview_attributes.focus)
     .with_transparent(webview_attributes.transparent)
@@ -5187,7 +5202,7 @@ You may have it installed on another user account, but it is not available for t
     {
       // GTK incognito views get a fresh ephemeral context from Wry. The shared context's
       // scheme registrations do not apply to it.
-      if !webview_attributes.incognito
+      if !separate_gtk_context
         && !web_context.registered_custom_protocols.insert(scheme.clone())
       {
         continue;

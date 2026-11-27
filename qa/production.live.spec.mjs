@@ -249,6 +249,32 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }
 
+test("Game Model opens from the main menu and loads the team's catalogue", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signIn(page);
+  const origin = new URL(page.url()).origin;
+  const catalogueResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === origin && url.pathname === "/api/game-model" && response.request().method() === "GET";
+  });
+  await openWorkspace(page, "game-model");
+  const response = await catalogueResponse;
+  expect(response.ok(), `Game Model catalogue returned HTTP ${response.status()}`).toBeTruthy();
+  const catalogue = await response.json();
+  expect(catalogue).toMatchObject({ ok: true, teamId: expect.any(String), canEdit: expect.any(Boolean) });
+  const workspace = page.locator('#gameModelWorkspace');
+  await expect(workspace.getByRole("heading", { name: "Game Model", exact: true })).toBeVisible();
+  await expect(workspace.getByRole("button", { name: "Team Principles", exact: true })).toBeVisible();
+  await expect(workspace.getByRole("button", { name: "Mini-Game Principles", exact: true })).toBeVisible();
+  const sample = catalogue.items.find((item) => item.kind === "individual-action" && !item.archived && item.positionIds.length);
+  expect(sample, "The release QA team's catalogue must include an active individual action").toBeTruthy();
+  await workspace.locator(`[data-gm-subphase="${sample.subPhaseId}"]`).click();
+  await workspace.getByRole("button", { name: "Individual Actions", exact: true }).click();
+  await workspace.getByRole("combobox", { name: "Position", exact: true }).selectOption(sample.positionIds[0]);
+  await expect(workspace.locator(`[data-gm-item-id="${sample.id}"]`).getByRole("heading")).toHaveText(sample.title);
+  console.log("Game Model release verified: main menu, authenticated team catalogue and position filter.");
+});
+
 test("IDP Game Model opens inside Add focus and Edit focus without writing data", async ({ page }) => {
   test.setTimeout(180_000);
   await signIn(page);

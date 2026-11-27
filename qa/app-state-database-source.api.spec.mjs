@@ -584,6 +584,7 @@ for (const denied of [false,true]) {
       value:JSON.stringify({workspaceAccess:{"session-planner":{view:denied?["admin"]:["admin","guest"],edit:["admin"]}}})};
     const mock=createConsistencyFetchMock(hub);
     global.fetch=async(url,options)=>{
+      if(String(url).includes("/rest/v1/performance_player_accounts?")) return Response.json([]);
       if(String(url).includes("/rest/v1/platform_app_state_records?")) return new Response(JSON.stringify([toDatabaseRow(hub)]));
       if(String(url).includes("/auth/v1/")) return new Response(JSON.stringify({
         id:`library-access-guest-${denied}`,email:"library-access@footballscience.test",app_metadata:{role:"guest",status:"active"},user_metadata:{}

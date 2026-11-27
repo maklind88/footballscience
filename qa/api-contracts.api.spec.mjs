@@ -286,6 +286,10 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
       return new Response(JSON.stringify(user), { status: 200 });
     }
 
+    if (requestUrl.includes("/rest/v1/performance_player_accounts?")) {
+      return Response.json([]);
+    }
+
     if (requestUrl.endsWith("/storage/v1/bucket/footballscience-app-state")) {
       return new Response(JSON.stringify({ id: "footballscience-app-state" }), { status: 200 });
     }

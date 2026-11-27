@@ -19,6 +19,7 @@ for (const role of ["admin", "medical", "performance", "coach", "guest"]) {
         const u = new URL(url), method = options.method || "GET";
         if (method !== "GET") writes.push(u.pathname);
         if (u.pathname === "/auth/v1/user") return Response.json({ id: `recovery-${role}-${present}`, app_metadata: { role, status: "active" } });
+        if (u.pathname === "/rest/v1/performance_player_accounts") return Response.json([]);
         if (u.pathname === "/rest/v1/platform_app_state_records") return Response.json(present ? [{ organization_id: "global", state_key: key, revision: 12, value, removed: false }] : []);
         if (u.pathname === "/storage/v1/bucket/footballscience-app-state") return Response.json({ id: "footballscience-app-state" });
         if (u.pathname.startsWith("/storage/v1/object/")) return new Response("{}", { status: 404 });

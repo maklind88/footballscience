@@ -595,13 +595,12 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).not.toContain("data-video-analysis-zoom");
   expect(timeline).not.toContain("video-analysis-timeline-controls");
   expect(timeline).toContain('function formatTimelineModeLabel(mode = {}, modeCounts = {}, activeLaneMode = "phase", clipCount = 0)');
-  expect(timeline).toContain('function renderLaneSelector(activeLaneMode = "phase", clipCount = 0, modeCounts = {})');
+  expect(timeline).toContain('function renderLaneSelector(activeLaneMode = "phase", clipCount = 0, modeCounts = {}, loadStatus = "")');
   expect(timeline).toContain("${escapeHtml(formatTimelineModeLabel(mode, modeCounts, activeLaneMode, clipCount))}");
   expect(timeline).not.toContain("renderTimelineStatus");
   expect(timeline).not.toContain("video-analysis-timeline-status");
   expect(timeline).not.toContain("${clipCount} clip");
-  expect(timeline).toContain("${renderLaneSelector(laneMode, density.clipCount, laneModeCounts)}");
-  expect(timeline).toContain("${renderLaneSelector(laneMode, density.clipCount, laneModeCounts)}\n            ${renderTimelineRuler(ticks, timelineWindow)}");
+  expect(timeline).toContain("${renderLaneSelector(laneMode, density.clipCount, laneModeCounts, state.clipLoadStatus)}\n            ${renderTimelineRuler(ticks, timelineWindow)}");
   expect(timeline).not.toContain("</div>\n          ${renderTimelineRuler(ticks, timelineWindow)}");
   const timelineStyles = read("src/modules/video-analysis/video-analysis.css");
   expect(timelineStyles).not.toContain("video-analysis-timeline-status");

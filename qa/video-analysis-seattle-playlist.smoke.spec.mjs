@@ -297,6 +297,6 @@ test("a saved Seattle playlist with two sources rejects the wrong file without c
     expect([await originalRows(page), await readTimelines()]).toEqual(before);
     expect(await page.evaluate(() => window.__videoAnalysisRequests.filter(request =>
       /^(save|archive|delete|restore)-/.test(request.action)
-      || request.action === "create-local-video-source"))).toMatchObject([{ action: "create-local-video-source" }]);
+      || request.action === "create-local-video-source"))).toEqual([]);
   } finally { rmSync(temp, { recursive: true, force: true }); }
 });

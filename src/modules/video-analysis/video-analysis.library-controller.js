@@ -3,6 +3,31 @@ import {
   mergeScheduleCandidates,
   normalizeContextScheduleCandidates,
 } from "./services/videoLibraryService.js";
+import { createInitialMediaProductionState } from "./services/mediaProductionService.js";
+import { createDefaultTimelineWorkspace } from "./domain/timelineWorkspace.model.js";
+
+function selectedSessionPatch(state, item) {
+  return {
+    sessionRevision: (state.sessionRevision || 0) + 1,
+    clips: [],
+    allClips: [],
+    selectedClipId: "",
+    nativePlaybackReady: false,
+    bridgeFallbackRecommended: false,
+    localFileHandleIdentity: null,
+    playbackPreparation: { active: false, token: "" },
+    mediaProduction: createInitialMediaProductionState(),
+    timelineWorkspace: createDefaultTimelineWorkspace(item.match?.id),
+    timeline: {
+      ...state.timeline,
+      playheadMs: 0,
+      selectedClipIds: [],
+      pendingArchiveClipIds: [],
+      selectedCategory: {},
+      history: [],
+    },
+  };
+}
 
 function contextScheduleCandidates(context = {}) {
   try {
@@ -89,12 +114,21 @@ export function createVideoLibraryController(deps = {}) {
     const run = ensureRuntime(context);
     const item = findVideoLibraryItem(run.store.getState(), itemKey);
     if (!item) return false;
-    const previous = run.store.getState().videoRef;
+    const current = run.store.getState();
+    const previous = current.videoRef;
     const activeTab = options.activeTab || "fs-player";
+    const openingSameSession = item.kind === "match"
+      && current.match?.id === item.match.id
+      && current.video?.id === item.latestVideo?.id;
+    if (!openingSameSession && (current.timelineWorkspace?.dirtyTimelineIds?.length || current.timelineWorkspace?.saveStatus === "saving")) {
+      run.store.setState({ error: "Save the pending timeline changes before switching videos." });
+      return false;
+    }
     if (item.kind === "schedule-candidate") {
       revokeLocalVideoReference(previous, context.win || window);
       run.store.update((state) => ({
         ...state,
+        ...selectedSessionPatch(state, item),
         view: "workspace",
         activeAnalysisRoomTab: activeTab,
         pendingScheduleLink: item,
@@ -108,8 +142,6 @@ export function createVideoLibraryController(deps = {}) {
         video: null,
         source: null,
         videoRef: null,
-        clips: [],
-        selectedClipId: "",
         message: "Schedule day selected. Link the local video once and it will stay connected.",
         error: "",
         ...localVideoStatusPatch("none", "No video linked"),
@@ -118,30 +150,33 @@ export function createVideoLibraryController(deps = {}) {
       scrollWorkspaceTop(context);
       return true;
     }
-    if (previous) revokeLocalVideoReference(previous, context.win || window);
+    if (previous && !openingSameSession) revokeLocalVideoReference(previous, context.win || window);
     run.store.update((state) => ({
       ...state,
+      ...(openingSameSession ? {} : selectedSessionPatch(state, item)),
       view: "workspace",
       activeAnalysisRoomTab: activeTab,
       pendingScheduleLink: null,
       match: item.match,
       video: item.latestVideo || null,
       source: item.latestSource || null,
-      videoRef: null,
-      clips: [],
-      selectedClipId: "",
+      videoRef: openingSameSession ? previous : null,
       message: activeTab === "presentation"
         ? "Opening tagged session for presentation."
         : item.hasVideo ? "Opening linked analysis video." : "Open session and link a local video.",
       error: "",
-      ...localVideoStatusPatch(
+      ...(openingSameSession && previous ? {} : localVideoStatusPatch(
         item.hasVideo ? "linked-unavailable" : "none",
         item.hasVideo ? "Reconnect local file on this device" : "No video linked"
-      ),
+      )),
     }));
-    if (activeTab !== "presentation") await restoreLocalVideoHandle(context, { silent: true, requestPermission: true });
-    await loadClips();
     scrollWorkspaceTop(context);
+    // Tags are server metadata; they do not depend on permission to read a local recording.
+    const clips = loadClips();
+    if (activeTab !== "presentation" && (!openingSameSession || !previous)) {
+      void restoreLocalVideoHandle(context, { silent: true });
+    }
+    await clips;
     return true;
   }
 

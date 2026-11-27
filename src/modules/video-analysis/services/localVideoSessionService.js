@@ -1,4 +1,4 @@
-import { createLocalVideoReference } from "./localVideoBridgeService.js";
+import { createLocalVideoReference, revokeLocalVideoReference } from "./localVideoBridgeService.js";
 import {
   getVideoHandle,
   isFileSystemAccessSupported,
@@ -36,6 +36,19 @@ function currentUserIdentity(context = {}) {
 
 export function isPreparedPlaybackUrl(objectUrl = "") {
   return /^https?:\/\/(?:127\.0\.0\.1|localhost):\d+\/playback\//.test(String(objectUrl || ""));
+}
+
+export function isSameVideoSession(before = {}, after = {}) {
+  return before.sessionRevision === after.sessionRevision
+    && before.match?.id === after.match?.id
+    && before.video?.id === after.video?.id
+    && before.source?.id === after.source?.id;
+}
+
+export function registeredVideoFileId(state = {}) {
+  const identifier = firstText(state.source?.local_video_identifier, state.source?.localVideoIdentifier,
+    state.video?.local_video_identifier, state.video?.localVideoIdentifier);
+  return /^local-video-[a-f0-9]{40}$/i.test(identifier) ? identifier : "";
 }
 
 export function buildLocalVideoHandleIdentity(state = {}, context = {}, overrides = {}) {
@@ -231,6 +244,20 @@ export async function restoreLocalVideoHandleForState({ state = {}, context = {}
     };
   }
 
+  const reference = await createLocalVideoReference(file, win);
+  const registeredId = registeredVideoFileId(state);
+  if (registeredId && registeredId !== reference.localVideoIdentifier) {
+    revokeLocalVideoReference(reference, win);
+    return {
+      ok: false,
+      reason: "wrong-local-file",
+      patch: localVideoStatusPatch("linked-unavailable", "Reconnect local file on this device", {
+        localFileHandleIdentity: identity,
+        nativePlaybackReady: false,
+        bridgeFallbackRecommended: false,
+      }),
+    };
+  }
   if (shouldBackfillIdentity(record, identity)) {
     try {
       await saveVideoHandle({ ...identity, handle: record.handle, displayName: record.name }, win);
@@ -239,7 +266,6 @@ export async function restoreLocalVideoHandleForState({ state = {}, context = {}
     }
   }
 
-  const reference = await createLocalVideoReference(file, win);
   return {
     ok: true,
     record,

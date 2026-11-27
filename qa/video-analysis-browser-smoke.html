@@ -34,7 +34,7 @@
         ? window.__videoAnalysisSmokeClips
         : defaultClips
       ).map((clip) => ({ ...clip }));
-      const matches = [
+      const matches = window.__videoAnalysisSmokeMatches || [
         {
           id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
           title: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
@@ -182,6 +182,12 @@
       }
 
       function clipMatchesRequest(clip = {}, parsed) {
+        if (window.__videoAnalysisSmokeMatches) {
+          const matchId = parsed.searchParams.get("matchId");
+          const videoId = parsed.searchParams.get("videoId");
+          if (matchId && clipField(clip, "matchId", "match_id") !== matchId) return false;
+          if (videoId && clipField(clip, "videoId", "video_id") !== videoId) return false;
+        }
         const miniGamePrincipleId = String(parsed.searchParams.get("miniGamePrincipleId") || "").trim().toLowerCase();
         if (miniGamePrincipleId && !clipMiniGamePrincipleValues(clip).includes(miniGamePrincipleId)) return false;
         const subPhase = String(parsed.searchParams.get("subPhase") || "").trim();
@@ -217,6 +223,10 @@
         const body = options.body ? JSON.parse(options.body) : {};
         window.__videoAnalysisRequests = window.__videoAnalysisRequests || [];
         window.__videoAnalysisRequests.push({ action, body });
+        if (window.__videoAnalysisSmokeRequest) {
+          const override = await window.__videoAnalysisSmokeRequest(parsed, options);
+          if (override) return override;
+        }
         if (parsed.origin === "http://127.0.0.1:47831" && parsed.pathname === "/session") {
           return Response.json({ ok: true, sessionToken: "local-smoke-session", expiresAt: "2099-01-01T00:00:00.000Z" }, { status: 201 });
         }

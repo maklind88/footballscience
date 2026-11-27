@@ -23,6 +23,7 @@ import {
   primaryMediaAngleForState,
 } from "../services/mediaProductionService.js";
 import { matchTimeToAngleTime } from "../services/multiAngleSyncService.js";
+import { isSameVideoSession } from "../services/localVideoSessionService.js";
 import { eventElement } from "../video-analysis.dom-events.js";
 import { createMediaCameraController } from "./mediaCameraController.js";
 
@@ -58,11 +59,13 @@ export function createMediaProductionController(options = {}) {
 
   async function initialize(force = false) {
     const state = getState();
+    const isCurrent = () => isSameVideoSession(state, getState());
     const matchId = state.match?.id || state.video?.match_id || "";
     if (!matchId || (!force && state.mediaProduction?.loadedMatchId === matchId)) return false;
     updateState((current) => mediaPatch(current, { status: "loading", loadedMatchId: matchId, error: "" }));
     try {
       const payload = await options.repository.workspace(matchId);
+      if (!isCurrent()) return false;
       let angles = Array.isArray(payload.angles) ? payload.angles.map(normalizeMediaAngle) : [];
       if (!angles.length) {
         const primary = primaryMediaAngleForState(getState());
@@ -75,6 +78,7 @@ export function createMediaProductionController(options = {}) {
           }
         }
       }
+      if (!isCurrent()) return false;
       updateState((current) => mediaPatch(current, {
         status: "ready",
         angles,
@@ -87,6 +91,7 @@ export function createMediaProductionController(options = {}) {
       }));
       return true;
     } catch (error) {
+      if (!isCurrent()) return false;
       updateState((current) => mediaPatch(current, { status: "ready", loadedMatchId: matchId, error: error.message || "Media metadata could not be loaded." }));
       return false;
     }

@@ -58,7 +58,7 @@ export function bindPaintedVideoControls(root, actions = {}) {
   });
   root.querySelectorAll("[data-video-analysis-load]").forEach((button) => {
     button.addEventListener("click", (event) => handleDirectControlEvent(event, () => {
-      actions.openLocalVideoPicker?.(contextForRoot(root));
+      actions.openLocalVideoPicker?.(contextForRoot(root), { reconnect: button.dataset.videoAnalysisLoad === "reconnect" });
     }));
   });
   root.querySelectorAll("[data-video-analysis-restore-local-file]").forEach((button) => {
@@ -80,7 +80,8 @@ export function bindPaintedVideoControls(root, actions = {}) {
     input.addEventListener("change", (event) => {
       event.__videoAnalysisHandled = true;
       if (input.files?.[0]) {
-        actions.handleFileSelection?.(input.files[0], contextForRoot(root));
+        actions.handleFileSelection?.(input.files[0], contextForRoot(root), { reconnect: input.dataset.videoAnalysisReconnect === "1" });
+        delete input.dataset.videoAnalysisReconnect;
         input.value = "";
       }
       event.stopPropagation();

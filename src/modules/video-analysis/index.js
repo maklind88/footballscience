@@ -123,9 +123,11 @@ import {
   browserFileAccessCapabilities,
   buildLocalVideoHandleIdentity,
   isPreparedPlaybackUrl,
+  isSameVideoSession,
   localVideoStatusPatch,
   persistLocalVideoHandle,
   pickLocalVideoFile,
+  registeredVideoFileId,
   restoreLocalVideoHandleForState,
 } from "./services/localVideoSessionService.js";
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
@@ -1456,9 +1458,10 @@ function isFilePickerUserGestureError(error = {}) {
   return error?.name === "NotAllowedError" || message.includes("Must be handling a user gesture");
 }
 
-function openFileInputFallback(context = {}, suppliedInput = null) {
+function openFileInputFallback(context = {}, suppliedInput = null, reconnect = false) {
   const fileInput = suppliedInput || getRoot(context)?.querySelector("[data-video-analysis-file]");
   if (!fileInput) return false;
+  fileInput.dataset.videoAnalysisReconnect = reconnect ? "1" : "";
   fileInput.value = "";
   fileInput.click();
   return true;
@@ -1466,20 +1469,23 @@ function openFileInputFallback(context = {}, suppliedInput = null) {
 
 async function openLocalVideoPicker(context = {}, options = {}) {
   const run = ensureRuntime(context);
+  const session = run.store.getState();
   const win = context.win || window;
   const capabilities = browserFileAccessCapabilities(win);
   if (capabilities.fileSystemAccessSupported) {
     try {
       const selection = await pickLocalVideoFile(win);
+      if (!isSameVideoSession(session, run.store.getState())) return false;
       run.store.setState(capabilities);
       if (selection?.file) {
-        await handleFileSelection(selection.file, context, { handle: selection.handle, keepAnalysisTab: options.keepAnalysisTab });
+        await handleFileSelection(selection.file, context, { ...options, handle: selection.handle });
         return true;
       }
       return true;
     } catch (error) {
       if (isAbortError(error)) return true;
-      if (isFilePickerUserGestureError(error) && openFileInputFallback(context, options.fileInput)) {
+      if (!isSameVideoSession(session, run.store.getState())) return false;
+      if (isFilePickerUserGestureError(error) && openFileInputFallback(context, options.fileInput, options.reconnect)) {
         run.store.setState({
           ...capabilities,
           status: "ready",
@@ -1493,12 +1499,14 @@ async function openLocalVideoPicker(context = {}, options = {}) {
     }
   }
   run.store.setState(capabilities);
-  return openFileInputFallback(context, options.fileInput);
+  return openFileInputFallback(context, options.fileInput, options.reconnect);
 }
 
 async function restoreLocalVideoHandle(context = {}, options = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
+  const request = run.localVideoRestoreRequest = Symbol();
+  const isCurrent = () => run.localVideoRestoreRequest === request && isSameVideoSession(state, run.store.getState());
   run.store.update((current) => ({
     ...current,
     status: "restoring-local-video",
@@ -1512,8 +1520,16 @@ async function restoreLocalVideoHandle(context = {}, options = {}) {
       context,
       requestReadPermission: Boolean(options.requestPermission),
     });
+    if (!isCurrent()) {
+      revokeLocalVideoReference(result.reference, context.win || window);
+      return false;
+    }
     if (result.ok && result.reference) {
       const metadataPatch = await ensureMetadataForRestoredReference(run, context, result.reference, result.record);
+      if (!isCurrent()) {
+        revokeLocalVideoReference(result.reference, context.win || window);
+        return false;
+      }
       revokeLocalVideoReference(state.videoRef, context.win || window);
       run.store.update((current) => ({
         ...current,
@@ -1521,9 +1537,9 @@ async function restoreLocalVideoHandle(context = {}, options = {}) {
         videoRef: result.reference,
         ...result.patch,
         localFileHandleIdentity: metadataPatch.localFileHandleIdentity || result.patch?.localFileHandleIdentity,
-        status: "ready",
+        status: current.status === "restoring-local-video" ? "ready" : current.status,
         message: options.silent ? current.message : metadataPatch.video ? "Local file and video metadata restored." : "Local file connected on this device.",
-        error: "",
+        error: options.silent ? current.error : "",
       }));
       return true;
     }
@@ -1532,10 +1548,11 @@ async function restoreLocalVideoHandle(context = {}, options = {}) {
       ...result.patch,
       status: current.status === "restoring-local-video" ? "ready" : current.status,
       message: options.silent ? "" : result.patch?.localFileMessage || current.message,
-      error: "",
+      error: options.silent ? current.error : "",
     }));
     return false;
   } catch (error) {
+    if (!isCurrent()) return false;
     run.store.setState({
       status: "error",
       message: "",
@@ -1764,6 +1781,8 @@ async function loadClips(nextFilters = null) {
   const run = runtime;
   if (!run) return;
   const state = run.store.getState();
+  const request = run.clipLoadRequest = Symbol();
+  const isCurrent = () => run.clipLoadRequest === request && isSameVideoSession(state, run.store.getState());
   const filters = nextFilters || state.filters;
   if (!shouldLoadMetadata(run.context, state)) {
     const preservePlaybackPreparation = shouldPreservePlaybackPreparation(state);
@@ -1777,12 +1796,14 @@ async function loadClips(nextFilters = null) {
   const preservePlaybackPreparation = shouldPreservePlaybackPreparation(state);
   run.store.setState({
     status: "loading-clips",
+    clipLoadStatus: "loading",
     error: preservePlaybackPreparation ? state.error : "",
   });
   try {
-    await run.timelineWorkspaceRuntime.load({ matchId: state.match?.id || state.videoRef?.matchId || "" });
+    const timelineLoad = run.timelineWorkspaceRuntime.load({ matchId: state.match?.id || state.videoRef?.matchId || "" });
     let clips = [];
     for (let offset = 0; offset < CLIP_WORKSPACE_LIMIT; offset += CLIP_PAGE_LIMIT) {
+      if (!isCurrent()) return;
       const payload = await run.clips.list({
         search: filters.search,
         phase: filters.phase,
@@ -1801,6 +1822,7 @@ async function loadClips(nextFilters = null) {
       clips = clips.concat(pageClips);
       if (pageSize < CLIP_PAGE_LIMIT) break;
     }
+    if (!isCurrent()) return;
     clips = clips.slice(0, CLIP_WORKSPACE_LIMIT);
     if (filters.playerId) {
       clips = clips.filter((clip) => (clip.players || []).some((player) => (player.player_id || player.playerId) === filters.playerId));
@@ -1819,13 +1841,16 @@ async function loadClips(nextFilters = null) {
       return {
         ...current,
         status: preservePlaybackPreparation ? current.status : "ready",
+        clipLoadStatus: "ready",
         clips: visibleClips,
         filters,
         error: preservePlaybackPreparation ? current.error : "",
       };
     });
+    await timelineLoad;
   } catch (error) {
-    run.store.setState({ status: "error", error: error.message || "Could not load clips." });
+    if (!isCurrent()) return;
+    run.store.setState({ status: "error", clipLoadStatus: "error", error: error.message || "Could not load clips." });
   }
 }
 
@@ -3224,10 +3249,22 @@ export function resetVideoAnalysisRuntimeForTests() {
 
 async function handleFileSelection(file, context = {}, options = {}) {
   const run = ensureRuntime(context);
-  const previous = run.store.getState().videoRef;
+  const session = run.store.getState();
+  const previous = session.videoRef;
+  run.localVideoRestoreRequest = null;
   try {
     const capabilities = browserFileAccessCapabilities(context.win || window);
     const reference = await createLocalVideoReference(file, context.win || window);
+    if (!isSameVideoSession(session, run.store.getState())) {
+      revokeLocalVideoReference(reference, context.win || window);
+      return;
+    }
+    const registeredId = registeredVideoFileId(session);
+    const reusingSource = hasVideoAnalysisMetadata(session) && registeredId === reference.localVideoIdentifier;
+    if (options.reconnect && registeredId && !reusingSource) {
+      revokeLocalVideoReference(reference, context.win || window);
+      throw new Error("This file does not match the linked video.");
+    }
     revokeLocalVideoReference(previous, context.win || window);
     const playbackWarning = reference.playbackCompatibility?.warning || "";
     const sessionOnlyMessage = capabilities.fileSystemAccessSupported
@@ -3241,7 +3278,7 @@ async function handleFileSelection(file, context = {}, options = {}) {
       activeAnalysisRoomTab: options.keepAnalysisTab ? run.store.getState().activeAnalysisRoomTab : "fs-player",
       videoRef: reference,
       playbackPreparation: { active: false, token: "" },
-      status: playbackWarning ? "error" : "saving-source",
+      status: playbackWarning ? "error" : reusingSource ? "ready" : "saving-source",
       message: playbackWarning ? "" : "Local video linked.",
       error: playbackWarning,
       nativePlaybackReady: false,
@@ -3250,6 +3287,13 @@ async function handleFileSelection(file, context = {}, options = {}) {
       ...initialStatusPatch,
     });
     const linkState = run.store.getState();
+    if (reusingSource) {
+      if (options.handle) {
+        await persistLocalVideoHandle({ state: linkState, context, handle: options.handle, reference }).catch(() => {});
+      }
+      if (isSameVideoSession(session, run.store.getState())) await loadClips();
+      return;
+    }
     const pendingSchedule = linkState.pendingScheduleLink || {};
     const activeMatch = linkState.match || {};
     const payload = await run.videos.createLocalVideoSource({
@@ -3265,6 +3309,7 @@ async function handleFileSelection(file, context = {}, options = {}) {
       scheduleDayKey: activeMatch.schedule_day_key || activeMatch.scheduleDayKey || pendingSchedule.scheduleDayKey || pendingSchedule.matchDate || "",
       opponent: activeMatch.opponent || pendingSchedule.opponent || "",
     });
+    if (!isSameVideoSession(session, run.store.getState())) return;
     const identity = buildLocalVideoHandleIdentity(run.store.getState(), context, {
       match: payload.match,
       video: payload.video,
@@ -3310,7 +3355,9 @@ async function handleFileSelection(file, context = {}, options = {}) {
     await libraryController().loadLibrary({ silent: true });
     await loadClips();
   } catch (error) {
-    run.store.setState({ status: "error", error: error.message || "Could not load video." });
+    if (isSameVideoSession(session, run.store.getState())) {
+      run.store.setState({ status: "error", error: error.message || "Could not load video." });
+    }
   }
 }
 
@@ -4669,8 +4716,9 @@ export function handleClick(event, context = {}) {
     libraryController().openLibraryItem(libraryItem.dataset.videoAnalysisOpenLibraryItem, context);
     return true;
   }
-  if (target.closest("[data-video-analysis-load]")) {
-    openLocalVideoPicker(context);
+  const loadVideo = target.closest("[data-video-analysis-load]");
+  if (loadVideo) {
+    openLocalVideoPicker(context, { reconnect: loadVideo.dataset.videoAnalysisLoad === "reconnect" });
     return true;
   }
   if (target.closest("[data-video-analysis-restore-local-file]")) {
@@ -5979,7 +6027,8 @@ export function handleChange(event, context = {}) {
   if (workspaceTimelineController(context).handleChange(event)) return true;
   const fileInput = target.closest("[data-video-analysis-file]");
   if (fileInput?.files?.[0]) {
-    handleFileSelection(fileInput.files[0], context);
+    handleFileSelection(fileInput.files[0], context, { reconnect: fileInput.dataset.videoAnalysisReconnect === "1" });
+    delete fileInput.dataset.videoAnalysisReconnect;
     fileInput.value = "";
     return true;
   }

@@ -14,6 +14,8 @@ export function createVideoAnalysisTimelineWorkspaceRuntime(options = {}) {
     if (!runtime) return null;
     const state = runtime.store.getState();
     const matchId = String(loadOptions.matchId || state.match?.id || state.videoRef?.matchId || "").trim();
+    const isCurrent = current => current.sessionRevision === state.sessionRevision
+      && String(current.match?.id || current.videoRef?.matchId || "") === matchId;
     const workspace = normalizeTimelineWorkspace(state.timelineWorkspace);
     if (!options.shouldLoadMetadata?.(runtime.context, state) || !matchId) return workspace;
     if (!loadOptions.force && workspace.loadedMatchId === matchId && ["loading", "ready"].includes(workspace.loadStatus)) {
@@ -35,6 +37,7 @@ export function createVideoAnalysisTimelineWorkspaceRuntime(options = {}) {
         : createDefaultTimelineWorkspace(matchId).timelines;
       let loadedWorkspace = null;
       runtime.store.update((current) => {
+        if (!isCurrent(current)) return current;
         const latest = normalizeTimelineWorkspace(current.timelineWorkspace);
         const requestedActiveId = timelines.some((timeline) => timeline.id === latest.activeTimelineId)
           ? latest.activeTimelineId
@@ -55,7 +58,7 @@ export function createVideoAnalysisTimelineWorkspaceRuntime(options = {}) {
       });
       return loadedWorkspace;
     } catch (error) {
-      runtime.store.update((current) => ({
+      runtime.store.update((current) => !isCurrent(current) ? current : ({
         ...current,
         timelineWorkspace: {
           ...normalizeTimelineWorkspace(current.timelineWorkspace),

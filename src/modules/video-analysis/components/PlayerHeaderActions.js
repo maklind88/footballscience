@@ -15,7 +15,7 @@ export function renderPlayerHeaderActions(state, options = {}) {
       </button>
       <div id="video-analysis-player-settings-menu" class="video-analysis-player-settings-menu" popover="auto" role="menu" aria-label="Player settings">
         ${showPermissionReconnect ? `<button type="button" role="menuitem" class="video-analysis-icon-button" data-video-analysis-restore-local-file>Reconnect local file</button>` : ""}
-        ${showPermissionReconnect && !hasVideo ? "" : `<button type="button" role="menuitem" class="video-analysis-icon-button" data-video-analysis-load title="${needsReconnect ? "Reconnect local video" : "Link local video"}">${loadLabel}</button>`}
+        ${showPermissionReconnect && !hasVideo ? "" : `<button type="button" role="menuitem" class="video-analysis-icon-button" data-video-analysis-load="${needsReconnect ? "reconnect" : ""}" title="${needsReconnect ? "Reconnect local video" : "Link local video"}">${loadLabel}</button>`}
         ${needsPrepare || showPrepared ? `<button type="button" role="menuitem" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${needsPrepare ? "" : "disabled"} title="Prepare browser-safe playback copy">${showPrepared ? "Prepared" : "Prepare"}</button>` : ""}
         ${canUndo ? `<button type="button" role="menuitem" class="video-analysis-icon-button" data-video-analysis-timeline-undo>Undo last tag change</button>` : ""}
         ${state.canEdit && selectionCount > 1 ? `

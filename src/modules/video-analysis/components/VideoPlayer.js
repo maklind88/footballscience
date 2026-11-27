@@ -47,7 +47,9 @@ export function renderVideoPlayer(state = {}) {
   const needsReconnect = hasLinkedMetadata && ["linked-unavailable", "permission-needed"].includes(localStatus);
   const showPermissionReconnect = localStatus === "permission-needed" && hasLinkedMetadata;
   const loadLabel = hasVideo ? "Change" : needsReconnect ? "Reconnect local file" : "Link local file";
-  const emptyActionAttribute = showPermissionReconnect ? "data-video-analysis-restore-local-file" : "data-video-analysis-load";
+  const emptyActionAttribute = showPermissionReconnect
+    ? "data-video-analysis-restore-local-file"
+    : needsReconnect ? 'data-video-analysis-load="reconnect"' : "data-video-analysis-load";
   const emptyActionLabel = needsReconnect
     ? "Reconnect local file"
     : "Load local match video";

@@ -1,5 +1,7 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 import { assertProductionDeployment } from "./lib/production-promotion.mjs";
 import { supabaseRefFromConfig } from "./lib/vercel-protected-read.mjs";
 
@@ -20,14 +22,21 @@ const harness = [
 ];
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 const ensure = (value, message) => { if (!value) throw new Error(message); };
+const runFile = promisify(execFile);
 
 async function read(url, token) {
-  const response = await fetch(url, {
-    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(30_000),
-    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
-  });
-  ensure(response.ok, `Read failed for ${url.hostname} (${response.status}).`);
-  return response;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const response = await fetch(url, {
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20_000),
+      headers: { Connection: "close", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    }).catch(() => null);
+    if (response?.ok) return response;
+    if (response && ![429, 502, 503, 504].includes(response.status)) {
+      throw new Error(`Read failed for ${url.hostname} (${response.status}).`);
+    }
+    if (attempt < 3) await delay(attempt * 1000);
+  }
+  throw new Error(`Read unavailable after three attempts for ${url.hostname}.`);
 }
 
 async function assertMain() {
@@ -63,13 +72,14 @@ async function inspect(path) {
   return (await read(url, process.env.VERCEL_TOKEN)).json();
 }
 
-function protectedAsset(path) {
+async function protectedAsset(path) {
   // Keep credential flags before curl's argument separator.
   const credentials = process.env.VERCEL_TOKEN ? ["--token", process.env.VERCEL_TOKEN] : [];
   try {
-    return execFileSync("npx", ["--yes", "vercel@53.2.0", "curl", path, "--deployment", deploymentId,
+    const { stdout } = await runFile("npx", ["--yes", "vercel@53.2.0", "curl", path, "--deployment", deploymentId,
       "--scope", teamId, ...credentials, "--", "--fail", "--silent", "--show-error",
-      "--max-time", "30", "--proto", "=https"], { timeout: 90_000, maxBuffer: 8 * 1024 * 1024 });
+      "--max-time", "30", "--proto", "=https"], { encoding: "buffer", timeout: 90_000, maxBuffer: 8 * 1024 * 1024 });
+    return stdout;
   } catch {
     throw new Error(`Could not verify the reviewed artifact at ${path}.`);
   }
@@ -100,10 +110,10 @@ function assertStageIsolation() {
   });
 }
 
-function verifyCandidateAssets() {
+async function verifyCandidateAssets() {
   linkVercelProject();
   assertStageIsolation();
-  ensure(supabaseRefFromConfig(JSON.parse(protectedAsset("/api/client-config"))) === supabaseRef,
+  ensure(supabaseRefFromConfig(JSON.parse(await protectedAsset("/api/client-config"))) === supabaseRef,
     "Reviewed artifact is not bound to production data.");
 
   const paths = ["app.js", "app-runtime.js",
@@ -111,7 +121,7 @@ function verifyCandidateAssets() {
       .filter(path => path.startsWith("src/modules/video-analysis/"))];
   ensure(paths.length === 11, "Unexpected production asset scope.");
   for (const path of paths) {
-    ensure(protectedAsset(`/${path}`).equals(readFileSync(path)), `Artifact mismatch: ${path}`);
+    ensure((await protectedAsset(`/${path}`)).equals(readFileSync(path)), `Artifact mismatch: ${path}`);
   }
   console.log(`Verified ${paths.length} deployed assets against ${sha}.`);
   return paths;
@@ -124,15 +134,18 @@ async function promote() {
     "Vercel deployment identity differs from the approved artifact.");
   const commit = candidate.meta?.githubCommitSha || candidate.meta?.gitCommitSha || candidate.gitSource?.sha;
   ensure(!commit || commit === sha, "Vercel reports an unexpected source commit.");
-  const paths = verifyCandidateAssets();
+  const paths = await verifyCandidateAssets();
   await assertMain();
   const stagingId = await aliasDeployment(stagingHost);
-  ensure(await aliasDeployment(liveHost) === previousLiveId, "Live changed; refusing to replace a different release.");
-  // A project-wide promotion could also retarget the unpinned staging domain.
-  vercel("alias", "set", deploymentHost, liveHost);
+  const liveId = await aliasDeployment(liveHost);
+  if (liveId !== deploymentId) {
+    ensure(liveId === previousLiveId, "Live changed; refusing to replace a different release.");
+    // A project-wide promotion could also retarget the unpinned staging domain.
+    vercel("alias", "set", deploymentHost, liveHost);
+  }
 
   for (let attempt = 0; attempt < 30 && await aliasDeployment(liveHost) !== deploymentId; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await delay(2000);
   }
   ensure(await aliasDeployment(liveHost) === deploymentId, "The reviewed deployment does not own the production alias.");
   ensure(await aliasDeployment(stagingHost) === stagingId, "The staging alias changed unexpectedly.");
@@ -147,5 +160,9 @@ async function promote() {
 
 await preflight();
 if (process.argv.includes("--preflight")) console.log(`Approval scope verified: ${sha} -> ${deploymentId}.`);
-else if (process.argv.includes("--verify-only")) verifyCandidateAssets();
+else if (process.argv.includes("--verify-only")) {
+  await verifyCandidateAssets();
+  await assertMain();
+  console.log("Verified the final main SHA read after all protected asset probes.");
+}
 else await promote();

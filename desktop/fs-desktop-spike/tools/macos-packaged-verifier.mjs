@@ -208,7 +208,7 @@ function readFailureDiagnostics() {
   const stderrCategories = Object.entries(graphicsErrors)
     .filter(([, pattern]) => pattern.test(output)).map(([category]) => category);
   const gtkEvents = output.split("\n").filter(line =>
-    /^FS_GTK role=(?:candidate|recovery) (?:attached ephemeral=(?:true|false) loading=(?:true|false)|(?:load|load_failed|terminated)=[a-zA-Z0-9_(): -]+)$/.test(line)
+    /^FS_GTK role=(?:candidate|recovery) (?:attached incognito=(?:true|false) ephemeral=(?:true|false) loading=(?:true|false)|(?:load|load_failed|terminated)=[a-zA-Z0-9_(): -]+)$/.test(line)
   ).slice(-30);
   return { lastProbe, observedStages: Object.fromEntries(observedStages), stderrCategories, gtkEvents };
 }
@@ -218,6 +218,9 @@ let app = null;
 try {
   if (!existsSync(appBinary)) throw new Error(`Native binary is missing: ${appBinary}`);
   if (linuxPackageRoot && realpathSync(appBinary) !== appBinary) throw new Error("The test package binary must not be a symlink.");
+  if (linux && !readFileSync(appBinary).includes("FS_GTK role=")) {
+    throw new Error("The Linux test executable does not contain the GTK trace point.");
+  }
   if (await portOpen()) throw new Error("The synthetic loopback port is already in use.");
   server = startServer();
   await waitForPort(true);

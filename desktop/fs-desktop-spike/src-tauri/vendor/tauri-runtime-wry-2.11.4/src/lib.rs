@@ -5267,12 +5267,10 @@ You may have it installed on another user account, but it is not available for t
   .map_err(|e| Error::CreateWebview(Box::new(e)))?;
 
   #[cfg(target_os = "linux")]
-  if webview_attributes.incognito
-    && option_env!("FS_DESKTOP_TEST_BUILD") == Some("1")
-    && std::env::var("FS_DESKTOP_CI").as_deref() == Ok("1")
+  if std::env::var("FS_DESKTOP_CI").as_deref() == Ok("1")
     && matches!(label.as_str(), "candidate" | "recovery")
   {
-    trace_ephemeral_gtk_webview(&webview.webview(), &label);
+    trace_ephemeral_gtk_webview(&webview.webview(), &label, webview_attributes.incognito);
   }
 
   if kind == WebviewKind::WindowContent {
@@ -5391,11 +5389,11 @@ You may have it installed on another user account, but it is not available for t
 }
 
 #[cfg(target_os = "linux")]
-fn trace_ephemeral_gtk_webview(view: &webkit2gtk::WebView, label: &str) {
+fn trace_ephemeral_gtk_webview(view: &webkit2gtk::WebView, label: &str, incognito: bool) {
   use webkit2gtk::WebViewExt;
 
   eprintln!(
-    "FS_GTK role={label} attached ephemeral={} loading={}",
+    "FS_GTK role={label} attached incognito={incognito} ephemeral={} loading={}",
     view.is_ephemeral(), view.is_loading()
   );
   let load_label = label.to_owned();

@@ -109,6 +109,7 @@ const RESTART_TEST_ROOT: &str = "FS_TEST_NATIVE_RESTART_ROOT";
 const RESTART_TEST_PHASE: &str = "FS_TEST_NATIVE_RESTART_PHASE";
 const RESTART_TEST_ORIGIN: &str = "FS_TEST_NATIVE_RESTART_ORIGIN";
 const RESTART_OPERATION_ID: &str = "00000000-0000-4000-8000-000000005101";
+const RESTART_TEST_ABRUPT_EXIT: i32 = 91;
 
 struct RestartTestVault(std::path::PathBuf);
 
@@ -207,7 +208,9 @@ fn run_native_restart_phase(root: &std::path::Path, phase: &str, origin: &str) {
             })
             .unwrap();
         assert_eq!(receipts, 0);
-        return;
+        // Exit only this synthetic child, with the SQLite connection still open.
+        // The next process must recover from disk without Rust drop handlers.
+        std::process::exit(RESTART_TEST_ABRUPT_EXIT);
     }
 
     assert_eq!(snapshot.state, "offline-authorized");
@@ -331,16 +334,24 @@ fn native_process_restart_replays_one_operation_under_restored_authority() {
             .env(RESTART_TEST_ORIGIN, origin)
             .output()
             .unwrap();
-        assert!(
-            result.status.success(),
-            "native {phase} process failed:\n{}\n{}",
+        let expected_code = if phase == "send" {
+            RESTART_TEST_ABRUPT_EXIT
+        } else {
+            0
+        };
+        assert_eq!(
+            result.status.code(),
+            Some(expected_code),
+            "native {phase} process ended unexpectedly:\n{}\n{}",
             String::from_utf8_lossy(&result.stdout),
             String::from_utf8_lossy(&result.stderr)
         );
-        assert!(
-            String::from_utf8_lossy(&result.stdout).contains("1 passed"),
-            "native {phase} test was not selected"
-        );
+        if phase == "replay" {
+            assert!(
+                String::from_utf8_lossy(&result.stdout).contains("1 passed"),
+                "native replay test was not selected"
+            );
+        }
     }
 
     line.clear();
